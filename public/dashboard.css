@@ -1,0 +1,414 @@
+/* SCADA IoT Dashboard Styles */  
+.container {  
+max-width: 1200px;  
+margin: 0 auto;  
+padding: 20px;  
+}
+
+header {  
+display: flex;  
+justify-content: space-between;  
+align-items: center;  
+padding: 1rem 2rem;  
+background: rgba(0, 20, 40, 0.8);  
+border-radius: 10px;  
+margin-bottom: 1rem;  
+animation: headerGlow 2s infinite alternate;  
+}
+
+@keyframes headerGlow {  
+from { box-shadow: 0 0 10px #00d4ff; }  
+to { box-shadow: 0 0 20px #0099cc; }  
+}
+
+.logo h1 {  
+font-size: 2.2rem;  
+color: #00d4ff;  
+animation: pulse 1.5s infinite;  
+}
+
+@keyframes pulse {  
+0% { transform: scale(1); }  
+50% { transform: scale(1.05); }  
+100% { transform: scale(1); }  
+}
+
+/* Navigation Bar */  
+.navbar {  
+background: rgba(0, 20, 40, 0.9);  
+border-radius: 10px;  
+margin: 1rem 0 2rem;  
+padding: 1rem;  
+animation: navSlideIn 0.5s ease;  
+}
+
+@keyframes navSlideIn {  
+from { opacity: 0; transform: translateY(-10px); }  
+to { opacity: 1; transform: translateY(0); }  
+}
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #333333;
+}
+
+ul li {
+  float: left;
+}
+
+ul li a {
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+}
+
+ul li a:hover {
+  background-color: #111111;
+}
+
+/* Dashboard Grid */  
+.dashboard-grid {  
+display: grid;  
+grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));  
+gap: 2rem;  
+margin-top: 2rem;  
+}
+
+.card {  
+background: rgba(255, 255, 255, 0.1);  
+border-radius: 15px;  
+padding: 1.5rem;  
+box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);  
+transition: transform 0.3s ease, box-shadow 0.3s ease;  
+}
+
+.card:hover {  
+transform: translateY(-5px);  
+box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);  
+}
+
+.real-time-data {  
+font-size: 2rem;  
+font-weight: bold;  
+color: #00ff85;  
+}
+
+.user-info {  
+font-size: 1rem;  
+color: #aaddff;  
+}
+
+.btn-logout {  
+padding: 0.5rem 1rem;  
+background: #ff5555;  
+color: white;  
+border: none;  
+border-radius: 8px;  
+cursor: pointer;  
+font-weight: bold;  
+transition: background 0.3s ease;  
+}
+
+.btn-logout:hover {  
+background: #cc4444;  
+}
+
+/* Mode Indicator */  
+.indicator {  
+display: inline-block;  
+width: 12px;  
+height: 12px;  
+border-radius: 50%;  
+margin-right: 8px;  
+}
+
+.indicator.red {  
+background: #ff5555;  
+box-shadow: 0 0 10px #ff5555;  
+animation: pulseRed 1s infinite;  
+}
+
+.indicator.green {  
+background: #00ff85;  
+box-shadow: 0 0 10px #00ff85;  
+animation: pulseGreen 1s infinite;  
+}
+
+@keyframes pulseRed {  
+0% { opacity: 0.5; }  
+100% { opacity: 1; }  
+}
+
+@keyframes pulseGreen {  
+0% { opacity: 0.5; }  
+100% { opacity: 1; }  
+}
+
+/* Page Content Styles */  
+.page-content {  
+display: none;  
+background: rgba(255, 255, 255, 0.05);  
+border-radius: 15px;  
+padding: 2rem;  
+margin-top: 2rem;  
+}
+
+.profile-info {  
+padding: 1rem;  
+background: rgba(0, 212, 255, 0.1);  
+border-radius: 10px;  
+}
+
+.data-table {  
+width: 100%;  
+border-collapse: collapse;  
+margin-top: 1rem;  
+}
+
+.data-table th {  
+background: rgba(0, 212, 255, 0.3);  
+padding: 1rem;  
+text-align: left;  
+}
+
+.data-table td {  
+padding: 0.8rem;  
+border-bottom: 1px solid rgba(255, 255, 255, 0.1);  
+}
+
+
+.data-table tr:hover {  
+background: rgba(255, 255, 255, 0.05);  
+}  
+
+.interface-container{
+padding:30px;
+text-align:center;
+
+}
+
+.process-area{
+display:flex;
+justify-content:center;
+align-items:center;
+gap:30px;
+flex-wrap:wrap;
+margin-top:30px;
+
+}
+
+:root{
+    --bg-deep:#070c14;
+    --bg-panel:#0e1826;
+    --glass:rgba(20,32,48,0.55);
+    --cyan:#00d4ff;
+    --green:#00ff85;
+    --amber:#ffaa00;
+    --red:#ff5555;
+    --steel-1:#2b3648;
+    --steel-2:#0f1620;
+    --text-dim:#7fa8c9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 20% 0%, #0d2436 0%, transparent 45%),
+      radial-gradient(circle at 85% 90%, #14251a 0%, transparent 40%),
+      var(--bg-deep);
+    font-family:'Segoe UI', system-ui, sans-serif;
+    color:#e8f4fc;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:40px 20px;
+  }
+  .rack{
+    width:100%;
+    max-width:920px;
+    background:linear-gradient(180deg, #101c2c 0%, #0a121d 100%);
+    border-radius:22px;
+    padding:32px;
+    border:1px solid #1c2c40;
+    box-shadow:
+      0 30px 60px -20px rgba(0,0,0,0.7),
+      0 0 0 1px rgba(255,255,255,0.02) inset,
+      0 1px 0 rgba(255,255,255,0.05) inset;
+  }
+  .rack-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:26px;
+  }
+  .rack-header h1{
+    font-size:1.05rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    margin:0;
+    font-weight:600;
+  }
+  .rack-header span{
+    font-size:.75rem;
+    color:var(--text-dim);
+  }
+
+  .stage{
+    display:grid;
+    grid-template-columns:1fr 1.3fr 1fr;
+    gap:18px;
+    align-items:stretch;
+  }
+
+  /* ---------- Shared device card ---------- */
+  .device{
+    position:relative;
+    background:var(--glass);
+    backdrop-filter:blur(14px);
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,0.06);
+    padding:20px 16px 22px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    box-shadow:
+      0 18px 30px -14px rgba(0,0,0,.6),
+      inset 0 1px 0 rgba(255,255,255,.06);
+    transform-style:preserve-3d;
+    perspective:600px;
+  }
+  .device-label{
+    font-size:.7rem;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+
+  /* ---------- Power toggle button (sits ABOVE the icon) ---------- */
+  .power-btn{
+    width:58px;height:58px;
+    border-radius:50%;
+    border:none;
+    cursor:pointer;
+    position:relative;
+    margin-bottom:14px;
+    background:
+      radial-gradient(circle at 32% 28%, #3a4a5e 0%, #17212e 60%, #0a1119 100%);
+    box-shadow:
+      0 8px 16px -4px rgba(0,0,0,.7),
+      0 2px 0 rgba(255,255,255,.08) inset,
+      0 -6px 10px rgba(0,0,0,.5) inset;
+    transition:transform .15s ease, box-shadow .25s ease;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .power-btn:active{ transform:translateY(2px) scale(.97); }
+  .power-btn svg{ width:24px;height:24px; transition:filter .25s ease, stroke .25s ease; stroke:#6c8399; }
+  .power-btn.on{
+    box-shadow:
+      0 0 0 3px rgba(0,255,133,.18),
+      0 8px 20px -4px rgba(0,255,133,.45),
+      0 2px 0 rgba(255,255,255,.12) inset;
+  }
+  .power-btn.on svg{ stroke:var(--green); filter:drop-shadow(0 0 4px rgba(0,255,133,.8)); }
+  .power-btn.manual-locked{ opacity:.4; cursor:not-allowed; }
+  .power-btn .ring{
+    position:absolute; inset:-6px;
+    border-radius:50%;
+    border:1px solid rgba(0,255,133,0);
+    transition:border-color .3s ease, transform .3s ease;
+  }
+  .power-btn.on .ring{ border-color:rgba(0,255,133,.35); animation:pulseRing 2s ease-out infinite; }
+  @keyframes pulseRing{
+    0%{ transform:scale(1); opacity:.7; }
+    100%{ transform:scale(1.35); opacity:0; }
+  }
+
+  /* ---------- Icon stage (the 3D device itself) ---------- */
+  .icon-stage{
+    width:120px;height:120px;
+    display:flex;align-items:center;justify-content:center;
+    transform:rotateX(8deg);
+  }
+  .icon-stage svg{ width:100%; height:100%; filter:drop-shadow(0 14px 12px rgba(0,0,0,.55)); }
+
+  .status-row{
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:.85rem;
+    font-weight:600;
+  }
+  .dot{ width:8px;height:8px;border-radius:50%; background:var(--red); box-shadow:0 0 6px var(--red); }
+  .dot.on{ background:var(--green); box-shadow:0 0 8px var(--green); }
+
+  /* pump rotation */
+  .rotate .impeller{ animation:roteimpeller 1.1s linear infinite; transform-origin:center; }
+  @keyframes roteimpeller{ to{ transform:rotate(360deg); } }
+  .pipe-flow{ stroke-dasharray:6 6; }
+  .pipe-flow.active{ animation:flow 0.7s linear infinite; }
+  @keyframes flow{ to{ stroke-dashoffset:-24; } }
+
+  /* heater flame */
+  .fire .flame{ animation:flicker 1.4s ease-in-out infinite; transform-origin:center bottom; }
+  @keyframes flicker{
+    0%,100%{ transform:scaleY(1) scaleX(1); opacity:1; }
+    50%{ transform:scaleY(1.12) scaleX(.95); opacity:.85; }
+  }
+
+  /* ---------- Center tank ---------- */
+  .tank-card{ justify-content:flex-start; }
+  .tank-shell{
+    width:110px;height:150px;
+    border-radius:14px;
+    border:2px solid #24384c;
+    background:linear-gradient(180deg,#0c1622,#070d15);
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 10px 24px -8px rgba(0,0,0,.6), inset 0 0 18px rgba(0,0,0,.6);
+    margin-top:6px;
+  }
+  .water{
+    position:absolute; left:0; right:0; bottom:0;
+    height:62%;
+    background:linear-gradient(180deg, rgba(0,212,255,.55), rgba(0,120,180,.75));
+    box-shadow:0 -2px 12px rgba(0,212,255,.4) inset;
+    transition:height .6s cubic-bezier(.4,0,.2,1);
+  }
+  .water::before{
+    content:"";
+    position:absolute; top:-4px; left:0; right:0; height:8px;
+    background:rgba(255,255,255,.25);
+    filter:blur(2px);
+  }
+  .tank-reading{ margin-top:10px; font-size:1.3rem; font-weight:700; color:var(--cyan); }
+  .tank-sub{ font-size:.75rem; color:var(--text-dim); margin-top:2px; }
+
+  .footnote{
+    margin-top:22px;
+    font-size:.72rem;
+    color:var(--text-dim);
+    text-align:center;
+    line-height:1.5;
+  }
+  .dot {
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--red);
+    box-shadow:0 0 6px var(--red);
+}
+
+.dot.on {
+    background:var(--green);
+    box-shadow:0 0 8px var(--green);
+}
+  

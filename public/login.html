@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCADA IoT Login</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="login-container">
+        <h2>SCADA IoT Dashboard</h2>
+
+        <!-- Form Login -->
+        <div class="form-container" id="loginForm">
+            <h3>Login User</h3>
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <p id="loginMsg" class="msg"></p>
+            <button onclick="login()">Login</button>
+            <p class="link" onclick="toggleRegister()">Belum punya akun? Daftar</p>
+        </div>
+
+        <!-- Form Register -->
+        <div class="form-container" id="registerForm" style="display:none">
+            <h3>Register User Baru</h3>
+            <input type="text" id="regUsername" placeholder="Username">
+            <input type="email" id="regEmail" placeholder="Email">
+            <input type="password" id="regPassword" placeholder="Password">
+            <input type="password" id="regConfirmPassword" placeholder="Konfirmasi Password">
+            <p id="registerMsg" class="msg"></p>
+            <button onclick="register()">Daftar</button>
+            <p class="link" onclick="toggleLogin()">Sudah punya akun? Login</p>
+        </div>
+    </div>
+    <script src="authfrontend.js"></script>
+</body>
+</html>

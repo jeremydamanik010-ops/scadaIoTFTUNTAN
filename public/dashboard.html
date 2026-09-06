@@ -1,0 +1,213 @@
+<!DOCTYPE html>  
+<html lang="en">  
+<head>  
+<meta charset="UTF-8">  
+<meta name="viewport" content="width=device-width, initial-scale=1.0">  
+<title>SCADA IoT Dashboard</title>  
+<link rel="stylesheet" href="dashboard.css">  
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  
+</head>  
+<body>  
+<div class="container">  
+<header>  
+<div class="logo">  
+<h1> SCADA IoT Dashboard</h1>  
+</div>  
+<div class="user-info">  
+<span id="userName"></span>  
+<button class="btn-logout" onclick="logout()">Logout</button>  
+</div>  
+</header>
+
+<nav class="dashboard-nav">  
+<ul>  
+<li><a href="#" onclick="openPage('Dashboard')"> Dashboard</a></li>  
+<li><a href="#" onclick="openPage('Profil')"> Profil</a></li>  
+<li><a href="#" onclick="openPage('Riwayat Data')"> Riwayat Data</a></li>
+<li><a href="#" onclick="openPage('Interface')"> Interface</a></li>
+<li><a href="#" onclick="toggleMode()">  
+<span id="modeIndicator" class="indicator green"></span>  
+<span id="modeText">Mode Otomatis</span>  
+</a></li>  
+</ul>  
+</nav>
+
+<div class="dashboard-grid" id="dashboardContent">
+    <!-- Volume Tanki -->
+    <div class="card">
+        <h2> Volume Tanki</h2>
+        <div class="real-time-data" id="tankVolume">
+            75 %
+        </div>
+        <canvas id="volumeChart"></canvas>
+    </div>
+    <!-- Suhu Air -->
+    <div class="card">
+        <h2> Suhu Air</h2>
+        <div class="real-time-data" id="waterTemperature">
+            30 °C
+        </div>
+        <canvas id="temperatureChart"></canvas>
+    </div>
+    <!-- Status Sistem -->
+    <div class="card">
+        <h2>⚙ Status Sistem</h2>
+        <p>
+            Pompa :
+            <span id="pumpStatus"
+            style="color:#00ff85;font-weight:bold;">
+            ON
+            </span>
+        </p>
+        <p>
+            Pemanas :
+            <span id="heaterStatus"
+            style="color:#ff5555;font-weight:bold;">
+            OFF
+            </span>
+        </p>
+        <hr>
+        <p>
+            RTU :
+            <span id="rtuStatus">
+                🟢 Connected
+            </span>
+        </p>
+        <br>
+        <p>
+            Mode Sistem :
+            <span id="systemMode">
+                Otomatis
+            </span>
+        </p>
+    </div>
+</div>
+
+<!-- Halaman Profil -->  
+<div class="page-content" id="profilePage" style="display:none">  
+<div class="card">  
+<h2> Profil Pengguna</h2>  
+<div class="profile-info">  
+<p><strong>Username:</strong> <span id="profileUsername"></span></p>  
+<p><strong>Role:</strong> <span id="profileRole"></span></p>  
+<p><strong>Tanggal Bergabung:</strong> <span id="profileJoinDate"></span></p>  
+</div>  
+<button class="btn-change" onclick="changePassword()">Ubah Password</button>  
+</div>  
+</div>
+
+<!-- Halaman Riwayat Data -->  
+<div class="page-content" id="historyPage" style="display:none">  
+<div class="card">  
+<h2>Riwayat Data Sensor</h2>  
+<table class="data-table">  
+<thead>
+<tr>
+<th>Waktu</th>
+<th>Volume Tanki (%)</th>
+<th>Suhu Air (°C)</th>
+<th>Pompa</th>
+<th>Pemanas</th>
+</tr>
+</thead>
+<tbody id="historyData">  
+<!-- Data akan dimuat dari database -->  
+</tbody>  
+</table>  
+<button class="btn-load" onclick="loadHistoryData()">Muat Data</button>  
+</div>  
+</div>  
+
+<div id="interfacePage" class="page-content" style="display:none">
+
+<div class="rack">
+  <div class="rack-header">
+  </div>
+
+  <div class="stage">
+
+    <!-- POMPA -->
+    <div class="device">
+      <div class="device-label">Pompa Air</div>
+      <button class="power-btn" id="pumpBtn" onclick="controlPump()" title="Kendalikan pompa manual">
+        <span class="ring"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <path d="M12 2v8"/><path d="M8.5 4.5a7 7 0 1 0 7 0"/>
+        </svg>
+      </button>
+      <div class="icon-stage" id="pumpIconStage">
+        <svg viewBox="0 0 120 120">
+          <defs>
+            <radialGradient id="pumpBody" cx="40%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#4a5b70"/>
+              <stop offset="55%" stop-color="#26313f"/>
+              <stop offset="100%" stop-color="#12181f"/>
+            </radialGradient>
+            <linearGradient id="pumpRim" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#5c7086"/>
+              <stop offset="100%" stop-color="#1a222c"/>
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="100" rx="34" ry="7" fill="#000" opacity=".35"/>
+          <rect x="30" y="78" width="60" height="16" rx="4" fill="url(#pumpRim)"/>
+          <circle cx="60" cy="60" r="38" fill="url(#pumpBody)" stroke="#0a0e13" stroke-width="2"/>
+          <circle cx="60" cy="60" r="38" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/>
+          <g id="pumpIcon" class="">
+            <g class="impeller" stroke="var(--cyan)" stroke-width="3" stroke-linecap="round">
+              <line x1="60" y1="60" x2="60" y2="34"/>
+              <line x1="60" y1="60" x2="82" y2="72"/>
+              <line x1="60" y1="60" x2="38" y2="72"/>
+            </g>
+            <circle cx="60" cy="60" r="7" fill="#0d1319" stroke="var(--cyan)" stroke-width="2"/>
+          </g>
+        </svg>
+      </div>
+      <div class="status-row"><span class="dot" id="pumpDot"></span><span id="pumpText">OFF</span></div>
+    </div>
+
+    <!-- TANGKI -->
+    <div class="device tank-card">
+      <div class="device-label">Volume Tangki</div>
+      <div class="tank-shell">
+        <div class="water" id="waterLevel" style="height:62%"></div>
+      </div>
+      <div class="tank-reading" id="tankPercent">62 %</div>
+      <div class="tank-sub" id="tempInterface">28.4 °C</div>
+    </div>
+
+    <!-- HEATER -->
+    <div class="device">
+      <div class="device-label">Water Heater</div>
+      <button class="power-btn" id="heaterBtn" onclick="controlHeater()" title="Kendalikan heater manual">
+        <span class="ring"></span>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <path d="M12 2v8"/><path d="M8.5 4.5a7 7 0 1 0 7 0"/>
+        </svg>
+      </button>
+      <div class="icon-stage" id="heaterIconStage">
+        <svg viewBox="0 0 120 120">
+          <defs>
+            <radialGradient id="heaterBody" cx="40%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#4a5b70"/>
+              <stop offset="55%" stop-color="#26313f"/>
+              <stop offset="100%" stop-color="#12181f"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="100" rx="34" ry="7" fill="#000" opacity=".35"/>
+          <rect x="30" y="78" width="60" height="16" rx="4" fill="url(#heaterBody)"/>
+          <circle cx="60" cy="60" r="38" fill="url(#heaterBody)" stroke="#0a0e13" stroke-width="2"/>
+          <circle cx="60" cy="60" r="38" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2"/>
+          <path d="M42 72c0-8 6-10 6-17s-4-9-4-9 10 2 10 12c0-9 6-11 6-11s6 9-2 15c6-2 10 4 10 10" 
+                fill="none" stroke="#3a4655" stroke-width="3" stroke-linecap="round"/>
+          <g id="heaterIcon" class="">
+            <path class="flame" d="M60 42c-6 6-10 12-10 19a10 10 0 0 0 20 0c0-4-2-7-4-9 .5 3-1 5-3 5-3 0-4-3-3-6 1-4 0-6 0-9z"
+              fill="var(--amber)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="status-row"><span class="dot" id="heaterDot"></span><span id="heaterText">OFF</span></div>
+    </div>
+
+<script src="script.js"></script>
+</body>  
+</html>  
