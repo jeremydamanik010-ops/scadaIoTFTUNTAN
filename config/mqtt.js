@@ -27,8 +27,20 @@ const TOPICS = [
 
 function connectMQTT() {
 
-  const host = process.env.MQTT_HOST;
-  const port = parseInt(process.env.MQTT_PORT || '8883', 10);
+  const rawHost = String(
+    process.env.MQTT_HOST || ''
+  ).trim();
+
+  // Buang mqtt://, mqtts://, dan port kalau ikut tertulis
+  const host = rawHost
+    .replace(/^mqtts?:\/\//i, '')
+    .replace(/:\d+$/, '')
+    .replace(/\/+$/, '');
+
+  const port = parseInt(
+    process.env.MQTT_PORT || '8883',
+    10
+  );
 
   if (!host) {
     console.error('❌ MQTT_HOST belum diatur');
@@ -37,19 +49,17 @@ function connectMQTT() {
 
   const mqttUrl = `mqtts://${host}:${port}`;
 
-  mqttClient = mqtt.connect(mqttUrl, {
+  console.log('🌐 MQTT Host:', host);
+  console.log('🌐 MQTT URL:', mqttUrl);
 
-    username: process.env.scadaiot,
-    password: process.env.ftuntan123,
+  mqttClient = mqtt.connect(mqttUrl, {
+    username: process.env.MQTT_USERNAME,
+    password: process.env.MQTT_PASSWORD,
 
     clientId: `scada_backend_${Date.now()}`,
-
     clean: true,
-
     reconnectPeriod: 5000,
-
     connectTimeout: 30000,
-
     rejectUnauthorized: true
   });
 
