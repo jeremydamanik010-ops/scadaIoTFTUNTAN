@@ -52,6 +52,20 @@ function connectMQTT() {
   console.log('🌐 MQTT Host:', host);
   console.log('🌐 MQTT URL:', mqttUrl);
 
+  console.log('===== MQTT CONFIG CHECK =====');
+  console.log('HOST:', host);
+  console.log('PORT:', port);
+  console.log('URL:', mqttUrl);
+  console.log(
+  'USERNAME tersedia:',
+  !!process.env.MQTT_USERNAME
+);
+console.log(
+  'PASSWORD tersedia:',
+  !!process.env.MQTT_PASSWORD
+);
+console.log('=============================');
+
   mqttClient = mqtt.connect(mqttUrl, {
     username: process.env.MQTT_USERNAME,
     password: process.env.MQTT_PASSWORD,
@@ -168,14 +182,18 @@ function connectMQTT() {
   // ERROR / CONNECTION EVENTS
   // ==========================================================
 
-  mqttClient.on('error', err => {
+ mqttClient.on('error', err => {
+  console.error('❌ MQTT ERROR FULL:', err);
 
-    console.error(
-      '❌ MQTT error:',
-      err.message
-    );
-
+  console.error('❌ MQTT ERROR DETAIL:', {
+    name: err?.name,
+    message: err?.message,
+    code: err?.code,
+    errno: err?.errno,
+    syscall: err?.syscall,
+    hostname: err?.hostname
   });
+});
 
 
   mqttClient.on('reconnect', () => {
