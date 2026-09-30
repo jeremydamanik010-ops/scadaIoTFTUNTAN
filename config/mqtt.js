@@ -1,148 +1,198 @@
 // ============================================================
 // config/mqtt.js — MQTT Client
-// Subscribe ke broker, terima data ESP8266,
-// simpan data ke Supabase
+// EMQX Cloud + Supabase
 // ============================================================
 
 require('dotenv').config();
 
 const mqtt = require('mqtt');
-const db   = require('./database');
+const db = require('./database');
 
 let mqttClient = null;
 
 
 // ============================================================
-// TOPIC MQTT
+// MQTT TOPICS
 // ============================================================
 
 const TOPICS = [
   'scada/RTU-01/sensor',
-  'scada/RTU-01/status',
+  'scada/RTU-01/status'
 ];
 
 
 // ============================================================
-// CONNECT MQTT
+// CONNECT MQTT — EMQX CLOUD
 // ============================================================
 
 function connectMQTT() {
 
-  mqttClient = mqtt.connect(
-    process.env.MQTT_HOST || 'mqtt://localhost',
-    {
-      port: parseInt(process.env.MQTT_PORT) || 1883,
-      clientId: `scada_backend_${Date.now()}`,
-      reconnectPeriod: 3000,
-    }
-  );
+  const host = process.env.MQTT_HOST;
+  const port = parseInt(process.env.MQTT_PORT || '8883', 10);
+
+  if (!host) {
+    console.error('❌ MQTT_HOST belum diatur');
+    return null;
+  }
+
+  const mqttUrl = `mqtts://${host}:${port}`;
+
+  mqttClient = mqtt.connect(mqttUrl, {
+
+    username: process.env.scadaiot,
+    password: process.env.ftuntan123,
+
+    clientId: `scada_backend_${Date.now()}`,
+
+    clean: true,
+
+    reconnectPeriod: 5000,
+
+    connectTimeout: 30000,
+
+    rejectUnauthorized: true
+  });
 
 
-  // ----------------------------------------------------------
-  // MQTT CONNECTED
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CONNECTED
+  // ==========================================================
 
   mqttClient.on('connect', () => {
 
     console.log(
-      '✅ MQTT terhubung ke broker:',
-      process.env.MQTT_HOST
+      '✅ MQTT terhubung ke EMQX Cloud:',
+      `${host}:${port}`
     );
 
-    mqttClient.subscribe(TOPICS, err => {
+    mqttClient.subscribe(
+      TOPICS,
+      {
+        qos: 0
+      },
+      err => {
 
-      if (err) {
+        if (err) {
 
-        console.error(
-          '❌ Gagal subscribe:',
-          err.message
-        );
+          console.error(
+            '❌ Gagal subscribe MQTT:',
+            err.message
+          );
 
-      } else {
+          return;
+        }
 
         console.log(
           '📡 Subscribe ke:',
           TOPICS.join(', ')
         );
-
       }
-
-    });
+    );
 
   });
 
 
-  // ----------------------------------------------------------
-  // TERIMA PESAN MQTT
-  // ----------------------------------------------------------
+  // ==========================================================
+  // MESSAGE
+  // ==========================================================
 
-  mqttClient.on('message', async (topic, message) => {
+  mqttClient.on(
+    'message',
+    async (topic, message) => {
 
-    const raw = message.toString();
+      const raw = message.toString();
 
-    console.log(`📨 [${topic}] ${raw}`);
-
-    try {
-
-      const payload = JSON.parse(raw);
-
-      const parts = topic.split('/');
-
-      const rtuId = parts[1];
-      const type  = parts[2];
-
-
-      if (type === 'sensor') {
-
-        await saveSensorData(
-          rtuId,
-          payload,
-          topic
-        );
-
-      }
-
-
-      if (type === 'status') {
-
-        await saveStatusLog(
-          rtuId,
-          payload
-        );
-
-      }
-
-    } catch (err) {
-
-      console.error(
-        '❌ Gagal proses pesan:',
-        err.message
+      console.log(
+        `📨 [${topic}] ${raw}`
       );
 
+      try {
+
+        const payload =
+          JSON.parse(raw);
+
+        const parts =
+          topic.split('/');
+
+        const rtuId =
+          parts[1];
+
+        const type =
+          parts[2];
+
+
+        if (type === 'sensor') {
+
+          await saveSensorData(
+            rtuId,
+            payload,
+            topic
+          );
+
+        }
+
+
+        if (type === 'status') {
+
+          await saveStatusLog(
+            rtuId,
+            payload
+          );
+
+        }
+
+      } catch (err) {
+
+        console.error(
+          '❌ Gagal proses pesan MQTT:',
+          err.message
+        );
+
+      }
+
     }
+  );
+
+
+  // ==========================================================
+  // ERROR / CONNECTION EVENTS
+  // ==========================================================
+
+  mqttClient.on('error', err => {
+
+    console.error(
+      '❌ MQTT error:',
+      err.message
+    );
 
   });
 
 
-  // ----------------------------------------------------------
-  // MQTT ERROR
-  // ----------------------------------------------------------
+  mqttClient.on('reconnect', () => {
 
-  mqttClient.on(
-    'error',
-    err => console.error(
-      '❌ MQTT error:',
-      err.message
-    )
-  );
+    console.log(
+      '🔄 MQTT mencoba reconnect ke EMQX...'
+    );
+
+  });
 
 
-  mqttClient.on(
-    'disconnect',
-    () => console.warn(
-      '⚠️ MQTT terputus, reconnecting...'
-    )
-  );
+  mqttClient.on('offline', () => {
+
+    console.warn(
+      '⚠️ MQTT client offline'
+    );
+
+  });
+
+
+  mqttClient.on('close', () => {
+
+    console.warn(
+      '⚠️ Koneksi MQTT ditutup'
+    );
+
+  });
 
 
   return mqttClient;
@@ -150,7 +200,7 @@ function connectMQTT() {
 
 
 // ============================================================
-// SIMPAN DATA SENSOR KE SUPABASE
+// SIMPAN SENSOR KE SUPABASE
 // ============================================================
 
 async function saveSensorData(
@@ -169,64 +219,38 @@ async function saveSensorData(
     payload.water_level ?? null;
 
 
-  // ----------------------------------------------------------
-  // HITUNG VOLUME
-  // ----------------------------------------------------------
-  // Untuk sementara masih mengikuti sistem lama:
-  //
-  // HIGH = 60–100%
-  // LOW  = 0–39%
-  //
-  // Nanti kalau sensor volume sudah benar-benar digunakan,
-  // bagian ini bisa kita ganti dengan nilai sensor asli.
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PENTING:
+  // Gunakan nilai asli yang dikirim RTU / simulator.
+  // Jangan generate random lagi di backend.
+  // ==========================================================
 
-  let tankVolume = null;
+  const tankVolume =
+    payload.tank_volume !== undefined &&
+    payload.tank_volume !== null
+      ? Number(payload.tank_volume)
+      : null;
 
-
-  if (waterLevel === 'HIGH') {
-
-    tankVolume =
-      parseFloat(
-        (Math.random() * 40 + 60).toFixed(1)
-      );
-
-  }
-
-
-  if (waterLevel === 'LOW') {
-
-    tankVolume =
-      parseFloat(
-        (Math.random() * 39).toFixed(1)
-      );
-
-  }
-
-
-  // ----------------------------------------------------------
-  // LOGIKA AKTUATOR
-  // ----------------------------------------------------------
 
   const pumpStatus =
-    tankVolume !== null &&
-    tankVolume < 40
-      ? 'ON'
-      : 'OFF';
+    String(
+      payload.pump_status ?? 'OFF'
+    ).toUpperCase();
 
 
   const heaterStatus =
-    suhu !== null &&
-    suhu < 28
-      ? 'ON'
-      : 'OFF';
+    String(
+      payload.heater_status ?? 'OFF'
+    ).toUpperCase();
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // STATUS RTU
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  let rtuStatus = 'Connected';
+  let rtuStatus =
+    payload.rtu_status ??
+    'Connected';
 
 
   if (
@@ -248,9 +272,9 @@ async function saveSensorData(
   }
 
 
-  // ----------------------------------------------------------
-  // INSERT KE SUPABASE
-  // ----------------------------------------------------------
+  // ==========================================================
+  // INSERT SUPABASE
+  // ==========================================================
 
   const {
     data,
@@ -258,15 +282,25 @@ async function saveSensorData(
   } = await db
     .from('sensor_data')
     .insert({
+
       rtu_id: rtuId,
+
       water_temp: suhu,
+
       humidity: humidity,
+
       water_level: waterLevel,
+
       tank_volume: tankVolume,
+
       pump_status: pumpStatus,
+
       heater_status: heaterStatus,
+
       rtu_status: rtuStatus,
-      mqtt_topic: topic,
+
+      mqtt_topic: topic
+
     })
     .select()
     .single();
@@ -285,7 +319,8 @@ async function saveSensorData(
 
 
   console.log(
-    `💾 Supabase — suhu:${suhu}°C | ` +
+    `💾 Supabase — ` +
+    `suhu:${suhu}°C | ` +
     `volume:${tankVolume}% | ` +
     `pompa:${pumpStatus} | ` +
     `heater:${heaterStatus}`
@@ -297,7 +332,7 @@ async function saveSensorData(
 
 
 // ============================================================
-// SIMPAN STATUS RTU KE SUPABASE
+// SIMPAN STATUS RTU
 // ============================================================
 
 async function saveStatusLog(
@@ -318,9 +353,13 @@ async function saveStatusLog(
   } = await db
     .from('rtu_status_log')
     .insert({
+
       rtu_id: rtuId,
+
       status: status,
-      mode: mode,
+
+      mode: mode
+
     })
     .select()
     .single();
@@ -350,7 +389,6 @@ async function saveStatusLog(
 
 // ============================================================
 // PUBLISH COMMAND
-// Tetap menggunakan MQTT
 // ============================================================
 
 function publishCommand(
@@ -358,27 +396,45 @@ function publishCommand(
   message
 ) {
 
-  if (!mqttClient) {
+  if (
+    !mqttClient ||
+    !mqttClient.connected
+  ) {
 
     console.log(
-      'MQTT belum terkoneksi'
+      '❌ MQTT belum terkoneksi ke broker'
     );
 
     return false;
-
   }
 
 
   mqttClient.publish(
     topic,
-    JSON.stringify(message)
-  );
+    JSON.stringify(message),
+    {
+      qos: 0
+    },
+    err => {
+
+      if (err) {
+
+        console.error(
+          '❌ MQTT publish gagal:',
+          err.message
+        );
+
+        return;
+      }
 
 
-  console.log(
-    '📤 MQTT Publish:',
-    topic,
-    message
+      console.log(
+        '📤 MQTT Publish:',
+        topic,
+        message
+      );
+
+    }
   );
 
 
