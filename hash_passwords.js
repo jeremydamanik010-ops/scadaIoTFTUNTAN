@@ -1,3 +1,5 @@
+// LEGACY MySQL MIGRATION ONLY — not required for Supabase Auth SCADA.
+// Do NOT run for current IMTS-V1 Supabase deployment.
 // ============================================================
 // hash_passwords.js — Jalankan SEKALI SAJA sebelum login
 // Mengubah password plain text di database jadi bcrypt hash

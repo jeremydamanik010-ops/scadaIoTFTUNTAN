@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const supabase = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const { createUserAuthClient } = require('../config/user-auth');
+const loginRateLimit = require('../middleware/login-rate-limit');
 
 const router = express.Router();
 
@@ -11,9 +13,13 @@ const router = express.Router();
 // REGISTER
 // ============================================================
 
-router.post('/register', async (req, res) => {
+router.post('/register', loginRateLimit, async (req, res) => {
+    // Disabled by default on internet-facing industrial control dashboards.
+    if (process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+        return res.status(403).json({ success: false, message: 'Registrasi publik dinonaktifkan. Hubungi administrator.' });
+    }
 
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body || {};
 
     if (!username || !email || !password) {
         return res.status(400).json({
@@ -134,9 +140,9 @@ router.post('/register', async (req, res) => {
 // LOGIN
 // ============================================================
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimit, async (req, res) => {
 
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
 
     if (!username || !password) {
         return res.status(400).json({
@@ -171,7 +177,7 @@ router.post('/login', async (req, res) => {
 
             return res.status(401).json({
                 success: false,
-                message: 'Username tidak ditemukan'
+                message: 'Username atau password salah'
             });
         }
 
@@ -180,7 +186,7 @@ router.post('/login', async (req, res) => {
         const {
             data: authData,
             error: authError
-        } = await supabase.auth.signInWithPassword({
+        } = await createUserAuthClient().auth.signInWithPassword({
             email: profile.email,
             password
         });
@@ -191,7 +197,7 @@ router.post('/login', async (req, res) => {
 
             return res.status(401).json({
                 success: false,
-                message: 'Password salah'
+                message: 'Username atau password salah'
             });
         }
 
@@ -240,7 +246,7 @@ router.post(
     authMiddleware,
     async (req, res) => {
 
-        const { newPassword } = req.body;
+        const { newPassword } = req.body || {};
 
         if (!newPassword || newPassword.length < 6) {
             return res.status(400).json({

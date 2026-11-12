@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,9 +25,9 @@
 <li><a href="#" onclick="openPage('Profil')"> Profil</a></li>
 <li><a href="#" onclick="openPage('Riwayat Data')"> Riwayat Data</a></li>
 <li><a href="#" onclick="openPage('Interface')"> Interface</a></li>
-<li><a href="#" onclick="toggleMode()">
-<span id="modeIndicator" class="indicator green"></span>
-<span id="modeText">Mode Otomatis</span>
+<li><a href="#" onclick="toggleMode(); return false;">
+<span id="modeIndicator" class="indicator gray"></span>
+<span id="modeText">Pilih Mode</span>
 </a></li>
 </ul>
 </nav>
@@ -53,11 +53,15 @@
     <div class="card">
         <h2>⚙ Status Sistem</h2>
         <p>
-            Pompa :
-            <span id="pumpStatus"
+            Valve 1 (Pipa 1) :
+            <span id="valve1Status"
             style="color:#00ff85;font-weight:bold;">
             ON
             </span>
+        </p>
+        <p>
+            Valve 2 (Pipa 2) :
+            <span id="valve2Status" style="color:#ff5555;font-weight:bold;">OFF</span>
         </p>
         <p>
             Pemanas :
@@ -73,13 +77,17 @@
                 🟢 Connected
             </span>
         </p>
+        <p id="liveConnectionStatus" aria-live="polite" style="font-size:0.82em;opacity:.82;">Menghubungkan data live...</p>
         <br>
-        <p>
-            Mode Sistem :
-            <span id="systemMode">
-                Otomatis
-            </span>
-        </p>
+        <p>Mode aktual RTU: <strong id="systemMode">Tidak diketahui (RTU offline)</strong></p>
+        <p>Mode pilihan operator: <strong id="desiredMode">Belum dipilih</strong></p>
+        <p id="modeSyncStatus" aria-live="polite">Memuat status RTU...</p>
+        <div class="mode-actions">
+          <button type="button" class="mode-choice" id="selectModeManual" onclick="selectMode('Manual')">Pilih Manual</button>
+          <button type="button" class="mode-choice" id="selectModeOtomatis" onclick="selectMode('Otomatis')">Pilih Otomatis</button>
+        </div>
+        <button type="button" class="mode-apply" id="applyModeBtn" onclick="applySavedMode()" hidden>Terapkan Mode ke RTU</button>
+        <p class="mode-note">Jika RTU offline, pilihan disimpan dan tidak langsung mengubah aktuator.</p>
     </div>
 </div>
 
@@ -106,7 +114,8 @@
 <th>Waktu</th>
 <th>Volume Tanki (%)</th>
 <th>Suhu Air (°C)</th>
-<th>Pompa</th>
+<th>Valve 1</th>
+<th>Valve 2</th>
 <th>Pemanas</th>
 </tr>
 </thead>
@@ -115,6 +124,30 @@
 </tbody>
 </table>
 <button class="btn-load" onclick="loadHistoryData()">Muat Data</button>
+</div>
+<div class="card communication-card">
+  <h2>Riwayat Komunikasi &amp; Export Excel</h2>
+  <p>Waktu kirim/terima RTU–MTU, perintah, ACK, serta statistik komunikasi. Data tersimpan di Supabase.</p>
+  <div class="communication-controls">
+    <label>Waktu mulai (WIB) <input type="datetime-local" step="60" id="commFrom" /></label>
+    <label>Waktu selesai (WIB) <input type="datetime-local" step="60" id="commTo" /></label>
+    <label>Arah komunikasi
+      <select id="commDirection">
+        <option value="all">Semua</option>
+        <option value="RTU_TO_MTU">RTU → MTU (Sensor)</option>
+        <option value="MTU_TO_RTU">MTU → RTU (Perintah)</option>
+      </select>
+    </label>
+    <button type="button" class="btn-load" onclick="loadCommunicationHistory()">Tampilkan</button>
+    <button type="button" class="btn-load" id="exportCommBtn" onclick="exportCommunicationExcel()">Download Excel (.xlsx)</button>
+  </div>
+  <p id="commInfo" class="communication-info" aria-live="polite">Pilih waktu mulai dan selesai untuk melihat komunikasi.</p>
+  <div id="commRates" class="communication-rates" aria-live="polite">PDR/PLR: pilih rentang, kemudian tekan Tampilkan.</div>
+  <div class="communication-table-wrap"><table class="data-table"><thead><tr>
+    <th>Arah</th><th>RTU (WIB)</th><th>MTU/backend (WIB)</th><th>Browser MTU (WIB)</th><th>Jenis</th><th>Packet / Command ID</th>
+    <th>Delay estimasi (ms)</th><th>RTT backend (ms)</th><th>Hasil / Mutu jam</th>
+  </tr></thead><tbody id="communicationHistory"></tbody></table></div>
+  <small>RTU → MTU: RTU kirim, backend/MTU terima. MTU → RTU: backend/MTU kirim, RTU terima. Timestamp dalam WIB (UTC+7). Delay satu arah antarjam berbeda adalah <b>estimasi</b>. PDR RTU→MTU butuh laporan jumlah paket terkirim dari RTU setiap 10 detik; jika data tidak lengkap, hasil tidak ditampilkan. PDR MTU→RTU adalah tingkat penerimaan <b>terkonfirmasi</b> melalui ACK/laporan RTU; PLR yang belum terkonfirmasi tidak selalu berarti paket pasti hilang.</small>
 </div>
 </div>
 
@@ -126,7 +159,7 @@
         <h2>INTERFACE SCADA IoT</h2>
         <p>Sistem Monitoring dan Kontrol Tanki Air</p>
       </div>
-      <div class="connection-badge"><span class="connection-light"></span>RTU-01 ONLINE</div>
+      <div class="connection-badge"><span class="connection-light"></span><span id="interfaceRtuText">RTU-01 — menunggu status</span></div>
     </div>
 
     <div class="process-scene">
@@ -135,11 +168,25 @@
         <div class="sensor-head"><span></span><span></span></div>
       </div>
 
-      <div class="pipe pipe-left">
-        <i></i><span class="pipe-flow"></span><b>›</b><b>›</b><i></i><em>Pipa 1</em>
+      <div class="pipe pipe-left" id="pipeValve1">
+        <i></i><span class="pipe-flow" id="valve1Flow"></span><b>›</b><b>›</b><i></i><em>Pipa 1</em>
+        <div class="valve-module" id="valve1Module">
+          <span class="valve-title">VALVE 1 · INLET</span>
+          <div class="valve-body" aria-hidden="true"><span class="valve-handle"></span><span class="valve-core"></span></div>
+          <div class="valve-actions"><button type="button" class="power-btn" id="valve1Btn" onclick="controlValve1()" title="Kontrol Valve 1 (Manual)" aria-label="Kontrol Valve 1">
+            <span class="ring"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"></path><path d="M8.5 4.5a7 7 0 1 0 7 0"></path></svg>
+          </button><span class="status-row"><span class="dot" id="valve1Dot"></span><span id="valve1Text">OFF</span></span></div>
+        </div>
       </div>
-      <div class="pipe pipe-right">
-        <i></i><span class="pipe-flow"></span><b>›</b><b>›</b><i></i><em>Pipa 2</em>
+      <div class="pipe pipe-right" id="pipeValve2">
+        <i></i><span class="pipe-flow" id="valve2Flow"></span><b>›</b><b>›</b><i></i><em>Pipa 2</em>
+        <div class="valve-module" id="valve2Module">
+          <span class="valve-title">VALVE 2 · OUTLET</span>
+          <div class="valve-body" aria-hidden="true"><span class="valve-handle"></span><span class="valve-core"></span></div>
+          <div class="valve-actions"><button type="button" class="power-btn" id="valve2Btn" onclick="controlValve2()" title="Kontrol Valve 2 (Manual)" aria-label="Kontrol Valve 2">
+            <span class="ring"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"></path><path d="M8.5 4.5a7 7 0 1 0 7 0"></path></svg>
+          </button><span class="status-row"><span class="dot" id="valve2Dot"></span><span id="valve2Text">OFF</span></span></div>
+        </div>
       </div>
 
       <div class="plant-unit source-unit">
@@ -164,6 +211,7 @@
         </div>
         <div class="main-readout">
           <span>Volume Tangki</span><strong id="tankPercent">62 %</strong><small id="tempInterface">28.4 °C</small>
+          <small id="processPhase">Fase proses: menunggu RTU</small><small id="transferTimer"></small>
         </div>
         <div class="equipment-label">TANKI UTAMA</div>
       </div>
@@ -172,28 +220,11 @@
         <div class="tank tank-side">
           <div class="tank-lid"><span></span></div>
           <div class="tank-glass">
-            <div class="tank-water destination-water"><span></span></div><i class="glass-shine"></i>
+            <div class="tank-water destination-water" id="destinationWater"><span></span></div><i class="glass-shine"></i>
           </div>
           <div class="tank-frame"><i></i><i></i></div>
         </div>
         <div class="equipment-label">TANKI PENAMPUNGAN</div>
-      </div>
-
-      <div class="pump-assembly">
-        <div class="device-callout">Pompa Air</div>
-        <div class="industrial-pump icon-stage" id="pumpIconStage">
-          <div class="pump-motor"><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="pump-housing">
-            <svg viewBox="0 0 64 64" aria-hidden="true">
-              <g id="pumpIcon"><g class="impeller"><path d="M32 32V12C42 13 49 18 51 26Z"></path><path d="M32 32L50 42C44 51 36 54 27 51Z"></path><path d="M32 32L14 42C9 33 10 24 17 18Z"></path></g><circle cx="32" cy="32" r="6"></circle></g>
-            </svg>
-          </div>
-          <div class="pump-base"></div>
-        </div>
-        <button class="power-btn" id="pumpBtn" onclick="controlPump()" title="Kendalikan pompa manual" aria-label="Kendalikan pompa manual">
-          <span class="ring"></span><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2v8"></path><path d="M8.5 4.5a7 7 0 1 0 7 0"></path></svg>
-        </button>
-        <div class="status-row"><span class="dot" id="pumpDot"></span><span id="pumpText">OFF</span></div>
       </div>
 
       <div class="heater-assembly">
@@ -212,6 +243,38 @@
         </div>
       </div>
     </div>
+  </section>
+  <section class="setpoint-panel" aria-labelledby="setpointTitle">
+    <div class="setpoint-heading">
+      <div>
+        <h3 id="setpointTitle">Pengaturan Batas Otomatis</h3>
+        <p>RTU-01 mengisi tangki melalui Valve 1, memanaskan air, lalu membuka Valve 2 selama 60 detik jika kedua setpoint tercapai.</p>
+      </div>
+      <span class="setpoint-tag">RTU-01</span>
+    </div>
+    <form id="setpointForm" onsubmit="saveSetpoints(event)">
+      <div class="setpoint-grid">
+        <label class="setpoint-field" for="temperatureSetpoint">
+          <span>Batas Suhu Air (°C)</span>
+          <input id="temperatureSetpoint" name="temperature_setpoint" type="number" min="0" max="90" step="0.1" inputmode="decimal" required placeholder="Contoh: 30">
+          <small>Setpoint suhu 0–90°C (simulator). Heater berhenti saat target tercapai dan tetap tunduk pada interlock keselamatan.</small>
+        </label>
+        <label class="setpoint-field" for="volumeSetpoint">
+          <span>Batas Volume Air (%)</span>
+          <input id="volumeSetpoint" name="volume_setpoint" type="number" min="15" max="98" step="0.1" inputmode="decimal" required placeholder="Contoh: 80">
+          <small>Setpoint volume 15–98%. Batas atas menjaga cadangan kapasitas tangki dan mencegah overflow.</small>
+        </label>
+      </div>
+      <div class="setpoint-footer">
+        <div class="setpoint-applied" aria-live="polite">
+          <span id="appliedTemperatureSetpoint">Suhu aktif: belum diketahui</span>
+          <span id="appliedVolumeSetpoint">Volume aktif: belum diketahui</span>
+          <span id="setpointSyncStatus">Menunggu status RTU...</span>
+        </div>
+        <button type="submit" id="saveSetpointBtn">Simpan &amp; Kirim ke RTU</button>
+      </div>
+    </form>
+    <p class="setpoint-note">Jika RTU offline, nilai masih dapat diketik tetapi belum bisa dikirim. Dalam mode Manual, setpoint disimpan oleh RTU tanpa mengambil alih kontrol aktuator. Valve 2 hanya membuka dalam Otomatis saat kedua setpoint tercapai; proteksi level air tetap berlaku.</p>
   </section>
 </div>
 </div>

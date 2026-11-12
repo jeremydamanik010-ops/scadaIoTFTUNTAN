@@ -11,6 +11,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const sensorRoutes = require('./routes/sensor');
 const rtuRoutes = require('./routes/rtu');
+const communicationRoutes = require('./routes/communication');
 
 const { connectMQTT } = require('./config/mqtt');
 
@@ -26,11 +27,13 @@ const PORT = process.env.PORT || 3000;
 // MIDDLEWARE
 // ============================================================
 
-app.use(cors({
-    origin: '*'
-}));
+// Frontend served by this same backend works without cross-origin permissions.
+const corsOrigins = (process.env.CORS_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
+if (corsOrigins.length) {
+    app.use(cors({ origin: corsOrigins }));
+}
 
-app.use(express.json());
+app.use(express.json({ limit: "64kb" }));
 
 app.use(express.urlencoded({
     extended: true
@@ -79,6 +82,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sensor', sensorRoutes);
 
 app.use('/api/rtu', rtuRoutes);
+app.use('/api/communication', communicationRoutes);
 
 
 // ============================================================

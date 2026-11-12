@@ -44,7 +44,7 @@ async function authMiddleware(req, res, next) {
 
         if (error || !user) {
 
-            return res.status(403).json({
+            return res.status(401).json({
                 success: false,
                 message:
                     'Token tidak valid atau sudah kadaluarsa, silakan login kembali'

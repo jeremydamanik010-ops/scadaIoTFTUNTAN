@@ -5,12 +5,9 @@ const supabase = require('./config/database');
 async function test() {
 
     console.log('URL:', process.env.SUPABASE_URL);
-    console.log(
-        'KEY:',
-        process.env.SUPABASE_KEY
-            ? process.env.SUPABASE_KEY.substring(0, 20) + '...'
-            : 'TIDAK ADA'
-    );
+    console.log('Supabase key dikonfigurasi:', Boolean(
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+    ));
 
     const {
         data,

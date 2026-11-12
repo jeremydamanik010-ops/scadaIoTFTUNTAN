@@ -641,35 +641,6 @@ header {
   to { opacity:0; transform:translateX(-50%) scale(1.3); }
 }
 
-/* Pump */
-.pump-assembly { position:absolute; z-index:15; top:296px; right:257px; width:160px; height:180px; }
-.device-callout {
-  position:absolute; top:-42px; left:50%; padding:7px 13px; border-radius:6px;
-  font-size:.78rem; white-space:nowrap; transform:translateX(-50%);
-}
-.device-callout::after { content:""; position:absolute; top:100%; left:50%; width:1px; height:20px; background:#fff; }
-.industrial-pump.icon-stage {
-  position:absolute; top:34px; left:24px; width:125px; height:82px; transform:none;
-  filter:drop-shadow(0 15px 12px rgba(0,0,0,.5));
-}
-.pump-motor {
-  position:absolute; top:17px; right:0; width:83px; height:51px; border:2px solid #07121b;
-  border-radius:8px 16px 16px 8px; background:linear-gradient(#1483d1,#07528f 48%,#042e55 52%,#0a6fb8);
-  box-shadow:inset 0 4px 7px rgba(255,255,255,.18);
-}
-.pump-motor > i { position:absolute; top:3px; bottom:3px; width:3px; background:rgba(0,21,44,.62); }
-.pump-motor > i:nth-child(1){left:16px}.pump-motor > i:nth-child(2){left:28px}.pump-motor > i:nth-child(3){left:40px}.pump-motor > i:nth-child(4){left:52px}.pump-motor > i:nth-child(5){left:64px}
-.pump-housing {
-  position:absolute; z-index:3; top:11px; left:0; width:63px; height:63px; border:3px solid #10171b;
-  border-radius:50%; background:radial-gradient(circle at 42% 38%,#52616b,#1a242b 60%,#0a0f12);
-}
-.pump-housing svg { width:100%; height:100%; filter:none; }
-.pump-housing .impeller { fill:#20c8ff; opacity:.85; transform-box:fill-box; transform-origin:center; }
-.pump-housing circle { fill:#e1f7ff; }
-.rotate .impeller,#pumpIcon.rotate .impeller { animation:rotateImpeller 1s linear infinite; }
-@keyframes rotateImpeller { to { transform:rotate(360deg); } }
-.pump-base { position:absolute; right:3px; bottom:-5px; left:9px; height:12px; border-radius:3px; background:linear-gradient(#515d64,#171d20); }
-
 /* Controls and status */
 .power-btn {
   position:absolute; z-index:20; display:flex; width:42px; height:42px; align-items:center;
@@ -678,7 +649,6 @@ header {
   box-shadow:0 8px 14px rgba(0,0,0,.48),inset 0 2px 3px rgba(255,255,255,.15);
   cursor:pointer; transition:transform .18s,box-shadow .22s,opacity .2s;
 }
-#pumpBtn { top:116px; left:59px; }
 .power-btn:hover { transform:translateY(-2px); }
 .power-btn svg { width:19px; height:19px; stroke:#8498a8; transition:stroke .2s,filter .2s; }
 .power-btn.on { box-shadow:0 0 0 3px rgba(53,224,124,.17),0 0 20px rgba(53,224,124,.38); }
@@ -688,12 +658,6 @@ header {
 .power-btn.on .ring { border-color:rgba(53,224,124,.45); animation:pulseRingNew 1.8s ease-out infinite; }
 @keyframes pulseRingNew { to { opacity:0; transform:scale(1.35); } }
 .status-row { display:flex; align-items:center; gap:7px; margin:0; font-size:.72rem; font-weight:800; letter-spacing:.06em; }
-.pump-assembly > .status-row {
-  position:absolute; top:130px; left:109px; padding:6px 9px; color:#e6f2f8;
-  background:rgba(8,18,25,.72); border-radius:999px;
-}
-.dot { display:inline-block; width:8px; height:8px; flex:0 0 auto; border-radius:50%; }
-
 /* Heater */
 .heater-assembly { position:absolute; z-index:15; top:492px; left:50%; width:190px; transform:translateX(-50%); }
 .heater-coil.icon-stage { width:84px; height:126px; margin:auto; transform:none; filter:drop-shadow(0 0 12px rgba(255,91,38,.35)); }
@@ -726,3 +690,103 @@ header {
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
 }
+
+/* Operator-selected mode can be saved while RTU is offline. */
+.indicator.gray { background:#a0aab4; box-shadow:0 0 4px #a0aab4; }
+.mode-actions { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+.mode-choice, .mode-apply { border:1px solid #5b7c92; background:#142f44; color:#f2f7fa;
+  border-radius:7px; padding:9px 12px; font-weight:600; cursor:pointer; }
+.mode-choice:hover, .mode-apply:hover { background:#19506e; }
+.mode-choice.selected-mode { border-color:#00d4ff; background:#145472; }
+.mode-choice:disabled, .power-btn:disabled { opacity:.45; cursor:not-allowed; }
+.mode-apply { background:#17674d; border-color:#00ff85; margin:5px 0; }
+.mode-apply[hidden] { display:none !important; }
+.mode-note { font-size:.82rem; opacity:.8; }
+
+
+/* V1.4: panel setpoint operator, placed below the existing plant scene. */
+.setpoint-panel { margin:18px 0 8px; padding:22px; color:#e9f5fb;
+  background:linear-gradient(145deg,#132935,#0a1b26); border:1px solid rgba(83,179,207,.35);
+  border-radius:16px; box-shadow:0 12px 32px rgba(0,0,0,.19); }
+.setpoint-heading { display:flex; gap:12px; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+.setpoint-heading h3 { margin:0 0 7px; font-size:1.2rem; }
+.setpoint-heading p { margin:0; max-width:630px; color:#b6ced8; font-size:.88rem; line-height:1.55; }
+.setpoint-tag { background:#164557; border:1px solid #33768a; border-radius:999px; padding:6px 12px; font-size:.72rem; font-weight:700; white-space:nowrap; }
+.setpoint-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.setpoint-field { display:flex; flex-direction:column; gap:8px; padding:15px;
+  background:rgba(0,0,0,.17); border:1px solid rgba(148,188,202,.22); border-radius:12px; }
+.setpoint-field span { font-size:.9rem; font-weight:700; }
+.setpoint-field input { display:block; width:100%; padding:12px; box-sizing:border-box;
+  border:1px solid #5d8794; border-radius:8px; background:#f9fcff; color:#102833;
+  font-size:1.12rem; font-weight:700; }
+.setpoint-field input:focus-visible { outline:3px solid #70dfff; outline-offset:2px; }
+.setpoint-field small { font-size:.76rem; color:#c1d1da; line-height:1.45; }
+.setpoint-footer { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:16px; }
+.setpoint-applied { display:flex; flex-direction:column; gap:5px; color:#bcd4dc; font-size:.82rem; }
+#setpointSyncStatus { font-weight:700; color:#e3f4f9; }
+#saveSetpointBtn { min-height:43px; padding:10px 18px; border:1px solid #35c6b0; border-radius:8px;
+  background:#166a5f; color:#fff; font-size:.89rem; font-weight:750; cursor:pointer; }
+#saveSetpointBtn:hover:not(:disabled) { background:#168775; }
+#saveSetpointBtn:disabled { opacity:.45; cursor:not-allowed; }
+.setpoint-note { color:#a9c3cd; margin:14px 0 0; font-size:.78rem; line-height:1.5; }
+@media (max-width:720px) {
+  .setpoint-panel { padding:16px; }
+  .setpoint-grid { grid-template-columns:1fr; }
+  .setpoint-footer { flex-direction:column; align-items:stretch; }
+  #saveSetpointBtn { width:100%; }
+}
+
+/* V1.5: Two in-line valves, preserving the existing 3-tank/pipeline layout. */
+.pipe .valve-module {
+  position:absolute;z-index:22;top:-91px;left:50%;width:172px;height:167px;
+  transform:translateX(-50%);display:flex;align-items:center;flex-direction:column;
+  pointer-events:none;
+}
+.valve-module .valve-title {
+  color:#fff;font-size:.71rem;font-weight:800;letter-spacing:.05em;white-space:nowrap;
+  padding:5px 9px;border-radius:6px;background:linear-gradient(#173556,#0c1d31);
+  border:1px solid rgba(125,227,255,.4);
+}
+.valve-body {position:relative;width:80px;height:62px;margin-top:5px;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5));}
+.valve-core {
+  position:absolute;bottom:0;left:9px;width:62px;height:37px;
+  background:linear-gradient(90deg,#17222d,#8196a3 24%,#0c2637 52%,#68899d 80%,#1b2b35);
+  border:2px solid #101921;clip-path:polygon(0 0,50% 38%,100% 0,100% 100%,50% 65%,0 100%);
+}
+.valve-handle {
+  position:absolute;z-index:2;top:0;left:30px;width:20px;height:25px;
+  background:linear-gradient(90deg,#30404d,#b2c9d5,#344653);border-radius:4px;
+}
+.valve-handle::before {
+  content:"";position:absolute;top:-5px;left:-13px;width:46px;height:10px;
+  background:linear-gradient(#d0dbe2,#35424d);border:2px solid #273642;border-radius:12px;
+}
+.valve-module.valve-open .valve-body{filter:drop-shadow(0 0 12px rgba(53,224,124,.85));}
+.valve-module.valve-open .valve-handle::before{background:linear-gradient(#7bffd1,#14754d);}
+.valve-actions {display:flex;align-items:center;gap:12px;margin-top:3px;pointer-events:auto;}
+.valve-actions .power-btn{position:relative;inset:auto;width:36px;height:36px;flex:none;}
+.valve-actions .status-row{color:white;border-radius:18px;background:rgba(8,18,25,.78);padding:6px 8px;}
+.pipe .pipe-flow{opacity:.08;}
+.pipe .pipe-flow.active{opacity:1;}
+.pipe.pipe-left .valve-module{left:50%;}
+.pipe.pipe-right .valve-module{left:50%;}
+.main-readout #processPhase {max-width:150px;font-size:.61rem;color:#7ee0ff;}
+.main-readout #transferTimer {color:#facc15;font-size:.67rem;}
+
+/* V1.6 communication history — preserve existing dashboard layout */
+.communication-card{margin-top:1.3rem}
+.communication-controls{display:flex;flex-wrap:wrap;gap:.85rem;align-items:end;margin:1rem 0}
+.communication-controls label{display:flex;flex-direction:column;gap:.35rem;min-width:150px;font-size:.9rem;color:#d9eaf5}
+.communication-controls input,.communication-controls select{padding:.65rem;border-radius:8px;border:1px solid #37546b;background:#10263a;color:#f0f8ff;max-width:100%}
+.communication-controls button{margin:0;white-space:nowrap}
+.communication-info{color:#b8def3;font-size:.9rem;margin:.7rem 0}
+.communication-table-wrap{overflow-x:auto;max-width:100%}
+.communication-table-wrap .data-table{min-width:840px}
+.communication-table-wrap .data-table td,.communication-table-wrap .data-table th{font-size:.84rem;padding:.7rem}
+
+/* V1.7: compact PDR/PLR results; previous dashboard layout unchanged. */
+.communication-rates{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;margin:.7rem 0}
+.communication-rate-item{border:1px solid #37546b;border-radius:9px;padding:.7rem;background:#10263a;color:#e4f1f8;font-size:.88rem}
+.communication-rate-item strong{display:block;font-size:1rem;margin:.25rem 0;color:#83e3fb}
+.communication-rate-item small{display:block;color:#b6ccd9}
+.communication-table-wrap .data-table{min-width:1250px}

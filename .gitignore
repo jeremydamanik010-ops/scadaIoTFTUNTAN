@@ -4,3 +4,9 @@ node_modules/
 npm-debug.log*
 .DS_Store
 mnt/
+
+simulasi-setpoints.json
+simulasi-setpoints.json.tmp
+
+# Environment template is safe to commit
+!.env.example

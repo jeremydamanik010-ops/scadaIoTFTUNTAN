@@ -10,11 +10,49 @@
 const express = require('express');
 const supabase = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const liveTelemetry = require('../services/live-telemetry');
 
 const router = express.Router();
 
 // Semua route sensor membutuhkan login
 router.use(authMiddleware);
+
+// Push events directly from MQTT reception to authenticated browser clients.
+// fetch() streaming is used rather than EventSource so Bearer token stays in a header.
+router.get('/stream', (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+    });
+    res.flushHeaders?.();
+    res.write('retry: 2000\n: connected\n\n');
+
+    let closed = false;
+    function send(event) {
+        if (closed || res.destroyed) return;
+        // Slow clients must not cause indefinite server memory accumulation.
+        if (res.writableLength > 200000) { res.end(); return; }
+        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
+    }
+    const unsubscribe = liveTelemetry.subscribe(event => {
+        if (event.rtu_id === 'RTU-01') send(event);
+    });
+    const keepAlive = setInterval(() => {
+        if (!closed && !res.destroyed) res.write(': heartbeat\n\n');
+    }, 15000);
+    function cleanup() {
+        if (closed) return;
+        closed = true;
+        clearInterval(keepAlive);
+        unsubscribe();
+    }
+    // Node's IncomingMessage 'close' may fire after request completion,
+    // long before the SSE response ends. Listen on the response instead.
+    res.on('close', cleanup);
+});
+
 
 
 // ============================================================
@@ -37,8 +75,12 @@ router.get('/latest', async (req, res) => {
                 humidity,
                 water_level,
                 tank_volume,
-                pump_status,
+                valve1_status,
+                valve2_status,
                 heater_status,
+                destination_volume,
+                process_phase,
+                transfer_remaining_seconds,
                 rtu_status,
                 mqtt_topic,
                 received_at
@@ -69,7 +111,11 @@ router.get('/latest', async (req, res) => {
 
         return res.json({
             success: true,
-            data: data || []
+            data: (data || []).map(row => ({
+                ...row,
+                is_stale: !Number.isFinite(Date.parse(row.received_at)) ||
+                    Date.now() - Date.parse(row.received_at) > 20000
+            }))
         });
 
     } catch (err) {
@@ -95,14 +141,10 @@ router.get('/latest', async (req, res) => {
 
 router.get('/history', async (req, res) => {
 
-    const rtu_id =
-        req.query.rtu_id || 'RTU-01';
+    const rtu_id = 'RTU-01'; // scope penelitian saat ini
 
-    const limit =
-        parseInt(req.query.limit) || 20;
-
-    const hours =
-        parseInt(req.query.hours) || 24;
+    const limit = Math.max(1, Math.min(500, Number.parseInt(req.query.limit, 10) || 20));
+    const hours = Math.max(1, Math.min(168, Number.parseInt(req.query.hours, 10) || 24));
 
     try {
 
@@ -124,8 +166,12 @@ router.get('/history', async (req, res) => {
                 humidity,
                 water_level,
                 tank_volume,
-                pump_status,
+                valve1_status,
+                valve2_status,
                 heater_status,
+                destination_volume,
+                process_phase,
+                transfer_remaining_seconds,
                 rtu_status,
                 mqtt_topic,
                 received_at
@@ -203,8 +249,12 @@ router.get('/summary', async (req, res) => {
             .select(`
                 water_temp,
                 tank_volume,
-                pump_status,
+                valve1_status,
+                valve2_status,
                 heater_status,
+                destination_volume,
+                process_phase,
+                transfer_remaining_seconds,
                 received_at
             `)
             .eq('rtu_id', 'RTU-01')
@@ -242,11 +292,8 @@ router.get('/summary', async (req, res) => {
                 )
                 .filter(Number.isFinite);
 
-        const pumpOn =
-            rows.filter(
-                r =>
-                    r.pump_status === 'ON'
-            ).length;
+        const valve1On = rows.filter(r => r.valve1_status === 'ON').length;
+        const valve2On = rows.filter(r => r.valve2_status === 'ON').length;
 
         const heaterOn =
             rows.filter(
@@ -306,8 +353,10 @@ router.get('/summary', async (req, res) => {
                     ? Math.max(...volume)
                     : 0,
 
-            pump_on_count:
-                pumpOn,
+            valve1_on_count:
+                valve1On,
+            valve2_on_count:
+                valve2On,
 
             heater_on_count:
                 heaterOn,
