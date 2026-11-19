@@ -111,6 +111,7 @@ function openPage(pageName) {
 
   // Kalau buka Riwayat Data → ambil data history
   if (pageName === "Riwayat Data") {
+    if (typeof setDefaultCommWindow === "function") setDefaultCommWindow(false);
     loadHistoryData();
     loadCommunicationHistory();
   }
@@ -968,15 +969,25 @@ async function connectLiveSensorStream() {
 connectLiveSensorStream();
 
 // ============================================================
-// V1.7 — time-window analysis, separate RTU/MTU timestamps and PDR/PLR.
-const commEndMs=Math.floor((Date.now()-15000)/60000)*60000;
+// V1.7.2 — time-window analysis, separate RTU/MTU timestamps and PDR/PLR.
 const commWibInput=ms=>new Date(ms+7*3600000).toISOString().slice(0,16);
 const commFromInput=document.getElementById('commFrom');
 const commToInput=document.getElementById('commTo');
-if(commFromInput)commFromInput.value=commWibInput(commEndMs-5*60000);
-if(commToInput)commToInput.value=commWibInput(commEndMs);
+function setDefaultCommWindow(force=false){
+  if(!commFromInput||!commToInput)return;
+  if(!force&&(commFromInput.dataset.userEdited==='true'||commToInput.dataset.userEdited==='true'))return;
+  // Gunakan batas akhir minimal 1 menit sebelum waktu sekarang agar selalu melewati batas tunggu 15 detik backend.
+  const endMs=Math.floor((Date.now()-60000)/60000)*60000;
+  commFromInput.value=commWibInput(endMs-5*60000);
+  commToInput.value=commWibInput(endMs);
+}
+for(const el of [commFromInput,commToInput]){
+  el?.addEventListener('change',()=>{el.dataset.userEdited='true';});
+}
+setDefaultCommWindow(true);
 const escComm=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const commClock=x=>x?new Date(x).toLocaleString('id-ID',{timeZone:'Asia/Pontianak',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',fractionalSecondDigits:3}):'—';
+const commShortClock=x=>x?new Date(x).toLocaleTimeString('id-ID',{timeZone:'Asia/Pontianak',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
 const commNumber=x=>x==null||!Number.isFinite(Number(x))?'—':Number(x).toFixed(2);
 const commConfig=()=>({from:commFromInput?.value,to:commToInput?.value,
   direction:document.getElementById('commDirection')?.value||'all'});
@@ -989,11 +1000,20 @@ function commValidateWindow(){
   if(end-start>31*86400000)throw new Error('Maksimal rentang 31 hari');
 }
 function commRateCard(label,m){
-  const available=m?.valid===true;
-  const status=available?`<strong>PDR ${commNumber(m.pdr)}% · PLR ${commNumber(m.plr)}%</strong>`:
-    '<strong>Belum dapat dihitung</strong>';
-  const desc=available?`${m.sent} terkirim · ${m.received} diterima/terkonfirmasi · ${m.lost} hilang/belum terkonfirmasi`:
-    (m?.reason||'Arah tidak dipilih');
+  if(m?.valid===true){
+    const status=`<strong>PDR ${commNumber(m.pdr)}% · PLR ${commNumber(m.plr)}%</strong>`;
+    const desc=`${m.sent} terkirim · ${m.received} diterima/terkonfirmasi · ${m.lost} hilang/belum terkonfirmasi`;
+    return `<div class="communication-rate-item"><b>${escComm(label)}</b>${status}<small>${escComm(desc)}</small></div>`;
+  }
+  if(m?.partial?.valid===true){
+    const p=m.partial;
+    const status=`<strong>PDR ${commNumber(p.pdr)}% · PLR ${commNumber(p.plr)}% (parsial)</strong>`;
+    const range=`${commShortClock(p.covered_from)}–${commShortClock(p.covered_to)} WIB`;
+    const desc=`${p.sent} terkirim · ${p.received} diterima · ${p.lost} hilang · ${p.complete_buckets}/${p.expected_buckets} bucket 10 dtk lengkap (${range})`;
+    return `<div class="communication-rate-item"><b>${escComm(label)}</b>${status}<small>${escComm(desc)}</small></div>`;
+  }
+  const status='<strong>Belum dapat dihitung</strong>';
+  const desc=m?.reason||'Data belum tersedia pada rentang ini';
   return `<div class="communication-rate-item"><b>${escComm(label)}</b>${status}<small>${escComm(desc)}</small></div>`;
 }
 async function loadCommunicationHistory(){

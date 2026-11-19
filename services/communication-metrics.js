@@ -66,8 +66,11 @@ function parseTimeWindow(from, to) {
   if(b<=a||b-a>31*86400000)throw Object.assign(new Error('Akhir harus setelah awal, maksimal 31 hari'),{statusCode:400});
   return {from:new Date(a).toISOString(),to:new Date(b).toISOString(),tz:'Asia/Pontianak'};
 }
-// 10-second sender reports are required for all buckets. A missing report is
-// NOT counted as a transmitted packet with zero delivery.
+// 10-second sender reports are required for all buckets for full-window validity.
+// A missing report is NOT counted as a transmitted packet with zero delivery.
+// When only a subset of buckets in [from, to) are complete (e.g. RTU started mid-minute
+// or stopped before window end), full-window valid stays false while `partial` reports
+// exact PDR/PLR strictly over the complete 10-second buckets only.
 const BUCKET_MS=10000;
 function calculateUplink(rows, reports, window, now=Date.now()) {
   const from=Date.parse(window.from),to=Date.parse(window.to);
@@ -77,33 +80,91 @@ function calculateUplink(rows, reports, window, now=Date.now()) {
   for(const r of reports){
     const t=Date.parse(r.window_start);
     if(!Number.isFinite(t)||t<from||t>=to)continue;
-    const key=t;
-    if(!byBucket.has(key))byBucket.set(key,[]);
-    byBucket.get(key).push(r);
+    if(!byBucket.has(t))byBucket.set(t,[]);
+    byBucket.get(t).push(r);
   }
+  const expectedBuckets=(to-from)/BUCKET_MS;
+  let allComplete=true;
   let sent=0;
+  let partialSent=0;
   const reportKeys=new Set();
+  const fullSessions=new Set();
+  const completeBuckets=new Map();
   for(let t=from;t<to;t+=BUCKET_MS){
     const reps=byBucket.get(t)||[];
-    if(!reps.length || reps.some(r=>r.bucket_complete!==true))return {valid:false,reason:'Laporan jumlah paket terkirim RTU tidak lengkap untuk seluruh rentang'};
-    for(const r of reps){
-      if(Number(r.sensor_sent_count)<0 || !Number.isSafeInteger(Number(r.sensor_sent_count)))return {valid:false,reason:'Laporan jumlah paket RTU tidak valid'};
+    if(!reps.length || reps.some(r=>r.bucket_complete!==true)){
+      allComplete=false;
+    }
+    const completeReps=reps.filter(r=>r.bucket_complete===true);
+    if(!completeReps.length) continue;
+    let bucketValid=true;
+    let bucketSent=0;
+    const bucketSessions=new Set();
+    for(const r of completeReps){
+      const count=Number(r.sensor_sent_count);
+      if(count<0 || !Number.isSafeInteger(count)){
+        if(allComplete) return {valid:false,reason:'Laporan jumlah paket RTU tidak valid'};
+        bucketValid=false;
+        break;
+      }
       const key=String(r.session_id)+':'+r.window_start;
       if(reportKeys.has(key)) continue;
       reportKeys.add(key);
-      sent+=Number(r.sensor_sent_count);
+      bucketSent+=count;
+      bucketSessions.add(r.session_id);
+      fullSessions.add(r.session_id);
+    }
+    if(bucketValid && bucketSessions.size){
+      completeBuckets.set(t,bucketSessions);
+      partialSent+=bucketSent;
+      if(allComplete) sent+=bucketSent;
     }
   }
-  const acceptedSessions=new Set(reports.map(r=>r.session_id));
-  const unique=new Set();
-  for(const r of rows){
-    const ms=Date.parse(r.rtu_sent_at||'');
-    if(ms>=from && ms<to && acceptedSessions.has(r.session_id))unique.add(r.packet_id);
+  if(allComplete){
+    const unique=new Set();
+    for(const r of rows){
+      const ms=Date.parse(r.rtu_sent_at||'');
+      if(ms>=from && ms<to && fullSessions.has(r.session_id))unique.add(r.packet_id);
+    }
+    const received=unique.size;
+    if(received>sent)return {valid:false,reason:'Paket diterima lebih banyak dari yang dilaporkan terkirim; audit data diperlukan',sent,received};
+    if(!sent)return {valid:false,reason:'RTU melaporkan 0 paket terkirim pada rentang ini',sent,received};
+    return {valid:true,sent,received,lost:sent-received,pdr:received/sent*100,plr:(sent-received)/sent*100,
+      complete_buckets:expectedBuckets,expected_buckets:expectedBuckets,
+      method:'RTU sender reports + paket unik diterima backend MQTT'};
   }
-  const received=unique.size;
-  if(received>sent)return {valid:false,reason:'Paket diterima lebih banyak dari yang dilaporkan terkirim; audit data diperlukan',sent,received};
-  if(!sent)return {valid:false,reason:'RTU melaporkan 0 paket terkirim pada rentang ini',sent,received};
-  return {valid:true,sent,received,lost:sent-received,pdr:received/sent*100,plr:(sent-received)/sent*100,method:'RTU sender reports + paket unik diterima backend MQTT'};
+  let partial=null;
+  if(completeBuckets.size>0 && partialSent>0){
+    const uniquePartial=new Set();
+    for(const r of rows){
+      const ms=Date.parse(r.rtu_sent_at||'');
+      if(!Number.isFinite(ms)||ms<from||ms>=to)continue;
+      const bucketStart=Math.floor(ms/BUCKET_MS)*BUCKET_MS;
+      const allowedSessions=completeBuckets.get(bucketStart);
+      if(allowedSessions && allowedSessions.has(r.session_id)) uniquePartial.add(r.packet_id);
+    }
+    const partialReceived=uniquePartial.size;
+    if(partialReceived<=partialSent){
+      const sortedTimes=[...completeBuckets.keys()].sort((a,b)=>a-b);
+      partial={
+        valid:true,
+        sent:partialSent,
+        received:partialReceived,
+        lost:partialSent-partialReceived,
+        pdr:partialReceived/partialSent*100,
+        plr:(partialSent-partialReceived)/partialSent*100,
+        complete_buckets:completeBuckets.size,
+        expected_buckets:expectedBuckets,
+        covered_from:new Date(sortedTimes[0]).toISOString(),
+        covered_to:new Date(sortedTimes[sortedTimes.length-1]+BUCKET_MS).toISOString(),
+        method:'Parsial: hanya dari bucket 10 detik RTU yang lengkap (bucket_complete=true)'
+      };
+    }
+  }
+  const reason=completeBuckets.size===0
+    ? 'Belum ada laporan 10 detik RTU lengkap (scada/RTU-01/stats) pada rentang ini; pastikan migrasi 004 & RTU V1.7 aktif'
+    : `Laporan jumlah paket terkirim RTU tidak lengkap untuk seluruh rentang (${completeBuckets.size}/${expectedBuckets} bucket 10 dtk lengkap)`;
+  return {valid:false,reason,complete_buckets:completeBuckets.size,expected_buckets:expectedBuckets,partial};
 }
 // Acknowledgement/receiver reports show evidence of receipt. If both reports
 // and ACK are lost, command delivery cannot be established conclusively.
@@ -112,11 +173,12 @@ function calculateDownlink(commands, reports, window, now=Date.now()) {
   if(to>now-15000)return {valid:false,reason:'Menunggu ACK dan laporan penerimaan RTU (minimal 15 detik)'};
   const relevant=commands.filter(c=>{const t=Date.parse(c.backend_command_sent_at||'');return t>=from&&t<to;});
   const unique=new Map(relevant.map(c=>[c.packet_id,c]));
-  if(!unique.size)return {valid:false,reason:'Tidak ada perintah MQTT tercatat sebagai terkirim pada rentang ini',sent:0,received:0};
+  if(!unique.size)return {valid:false,reason:'Belum ada perintah MQTT dikirim ke RTU pada rentang ini',sent:0,received:0};
   const reportReceived=new Set(reports.flatMap(r=>Array.isArray(r.command_received_ids)?r.command_received_ids:[]));
   let received=0;
   for(const [id,c] of unique){
-    if(c.rtu_command_received_at || reportReceived.has(id))received++;
+    const ackConfirmed=c.outcome==='ACK_OK'||c.outcome==='ACK_REJECTED';
+    if(c.rtu_command_received_at || ackConfirmed || reportReceived.has(id))received++;
   }
   const sent=unique.size, notConfirmed=sent-received;
   return {valid:true,sent,received,lost:notConfirmed,pdr:received/sent*100,plr:notConfirmed/sent*100,

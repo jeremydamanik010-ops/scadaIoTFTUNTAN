@@ -1,4 +1,4 @@
-// SCADA V1.7 — authenticated communication history, PDR/PLR by time window, Excel.
+// SCADA V1.7.2 — authenticated communication history, PDR/PLR by time window, Excel.
 const express=require('express');
 const db=require('../config/database');
 const auth=require('../middleware/auth');
@@ -27,8 +27,8 @@ function sensorQuery(id,w){return db.from('communication_logs').select('*').eq('
 function commandQuery(id,w){return db.from('communication_logs').select('*').eq('rtu_id',id).eq('event_type','command')
   .gte('backend_command_sent_at',w.from).lt('backend_command_sent_at',w.to)
   .order('backend_command_sent_at',{ascending:true}).order('packet_id',{ascending:true});}
-function reportQuery(id,w,extraMs=0){return db.from('communication_sender_windows').select('*').eq('rtu_id',id)
-  .gte('window_start',w.from).lt('window_start',new Date(Date.parse(w.to)+extraMs).toISOString())
+function reportQuery(id,w,extraMs=0,beforeMs=0){return db.from('communication_sender_windows').select('*').eq('rtu_id',id)
+  .gte('window_start',new Date(Date.parse(w.from)-beforeMs).toISOString()).lt('window_start',new Date(Date.parse(w.to)+extraMs).toISOString())
   .order('window_start',{ascending:true}).order('session_id',{ascending:true});}
 async function getRows(id,w,direction){
   const [s,c]=await Promise.all([
@@ -37,7 +37,7 @@ async function getRows(id,w,direction){
   ]);
   if(s.length+c.length>MAX_EXPORT)throw Object.assign(new Error('Lebih dari 20.000 baris. Persempit rentang.'),{statusCode:413});
   if(c.length){
-    const reports=await fetchInPages(()=>reportQuery(id,w,30000));
+    const reports=await fetchInPages(()=>reportQuery(id,w,30000,10000));
     const receiptTimes=new Map();
     for(const r of reports)for(const [cid,time] of Object.entries(r.command_received_times||{})){
       if(!receiptTimes.has(cid))receiptTimes.set(cid,time);
@@ -49,13 +49,15 @@ async function getRows(id,w,direction){
   return [...s,...c].sort((a,b)=>Date.parse(a.rtu_sent_at||a.backend_command_sent_at)-Date.parse(b.rtu_sent_at||b.backend_command_sent_at));
 }
 async function getMetrics(id,w,direction,data){
-  const reports=await fetchInPages(()=>reportQuery(id,w,30000));
+  const reports=await fetchInPages(()=>reportQuery(id,w,30000,10000));
+  const fromMs=Date.parse(w.from),toMs=Date.parse(w.to);
+  const inWindowReports=reports.filter(r=>{const t=Date.parse(r.window_start);return t>=fromMs && t<toMs;});
   const sensors=data.filter(x=>x.event_type==='sensor');
   const commands=data.filter(x=>x.event_type==='command');
   return {
     uplink:direction==='MTU_TO_RTU'?null:calculateUplink(sensors,reports,w),
     downlink:direction==='RTU_TO_MTU'?null:calculateDownlink(commands,reports,w),
-    report_count:reports.length
+    report_count:inWindowReports.length
   };
 }
 function parseFilters(req){
@@ -78,8 +80,10 @@ router.get('/:id/history',async(req,res)=>{
 router.get('/:id/metrics',async(req,res)=>{
   try{
     const {window,direction}=parseFilters(req);
-    const data=await getRows(req.params.id,window,direction);
-    const metrics=await getMetrics(req.params.id,window,direction,data);
+    // Selalu hitung metrik uplink & downlink agar kedua kartu PDR/PLR dapat mengkalkulasi
+    // meskipun tabel Riwayat Komunikasi sedang difilter ke salah satu arah.
+    const data=await getRows(req.params.id,window,'all');
+    const metrics=await getMetrics(req.params.id,window,'all',data);
     return res.json({success:true,window,direction,metrics});
   }catch(err){return responseError(res,err,'Metrics:');}
 });
@@ -94,12 +98,20 @@ const utc=v=>v?new Date(v).toISOString():'';
 const wib=v=>v?new Date(Date.parse(v)+7*3600000).toISOString().replace('T',' ').replace('Z',' WIB'):'';
 function deliveryRow(m,i,label){
   const n=i+2;
-  const good=m?.valid===true;
-  return [label,good?m.sent:'',good?m.received:'',good?m.lost:'',
-    good?{formula:`IF(B${n}>0,C${n}/B${n}*100,\"\")`,cached:ms(m.pdr)}:'',
-    good?{formula:`IF(B${n}>0,D${n}/B${n}*100,\"\")`,cached:ms(m.plr)}:'',
-    good?'Tersedia':m?.reason||'Tidak dipilih',m?.method||'',
-    label.includes('MTU → RTU')?'PDR terkonfirmasi; PLR = belum terkonfirmasi (ACK bisa hilang)':'Diterima di backend MQTT (bukan browser)'];
+  const full=m?.valid===true;
+  const active=full?m:(m?.partial?.valid===true?m.partial:null);
+  const status=full?'Tersedia'
+    :active?`Parsial (${active.complete_buckets}/${active.expected_buckets} bucket 10 dtk lengkap)`
+    :(m?.reason||'Tidak dipilih');
+  const note=label.includes('MTU → RTU')
+    ?'PDR terkonfirmasi; PLR = belum terkonfirmasi (ACK bisa hilang)'
+    :(active && !full
+      ?`Hanya dari bucket 10 dtk lengkap: ${wib(active.covered_from)} s/d ${wib(active.covered_to)}`
+      :'Diterima di backend MQTT (bukan browser)');
+  return [label,active?active.sent:'',active?active.received:'',active?active.lost:'',
+    active?{formula:`IF(B${n}>0,C${n}/B${n}*100,"")`,cached:ms(active.pdr)}:'',
+    active?{formula:`IF(B${n}>0,D${n}/B${n}*100,"")`,cached:ms(active.plr)}:'',
+    status,active?.method||m?.method||'',note];
 }
 function buildTabs(data,rtuId,window,metrics){
   const sensors=data.filter(r=>r.event_type==='sensor');
@@ -111,18 +123,23 @@ function buildTabs(data,rtuId,window,metrics){
   const delayRows=sensors.map(r=>[r.packet_id,wib(r.rtu_sent_at),wib(r.backend_received_at),wib(r.browser_received_at),ms(r.delay_rtu_backend_est_ms),ms(r.delay_rtu_browser_est_ms),r.clock_quality||'unverified','One-way estimasi lintas jam; perlu NTP dan audit offset']);
   const commandRows=commands.map(r=>[r.packet_id,r.command_device||'',wib(r.mtu_sent_at),wib(r.backend_request_received_at),wib(r.backend_command_sent_at),wib(r.rtu_command_received_at),wib(r.rtu_ack_sent_at),wib(r.backend_ack_received_at),ms(r.delay_mtu_rtu_est_ms),ms(r.delay_backend_rtu_est_ms),ms(r.backend_rtt_ms),r.clock_quality||'unverified',r.outcome||'',r.error_message||'']);
   const rtt=stats(commands.map(r=>r.backend_rtt_ms));
+  const upPartial=metrics.uplink?.partial?.valid?metrics.uplink.partial:null;
+  const upPdrCell=metrics.uplink?.valid?ms(metrics.uplink.pdr)
+    :upPartial?`${ms(upPartial.pdr)} (parsial ${upPartial.complete_buckets}/${upPartial.expected_buckets} bucket)`:'Tidak tersedia';
+  const upPlrCell=metrics.uplink?.valid?ms(metrics.uplink.plr)
+    :upPartial?`${ms(upPartial.plr)} (parsial ${upPartial.complete_buckets}/${upPartial.expected_buckets} bucket)`:'Tidak tersedia';
   const summary=[['RTU',rtuId],['Dari UTC',window.from],['Sampai UTC (eksklusif)',window.to],
     ['Zona waktu pada kolom Excel','WIB (Asia/Pontianak / UTC+7)'],['Jumlah sensor diterima',sensors.length],
     ['Jumlah perintah dicatat',commands.length],['RTT backend minimum (ms)',ms(rtt.min)],
     ['RTT backend rata-rata (ms)',ms(rtt.avg)],['RTT backend maksimum (ms)',ms(rtt.max)],
-    ['RTU→MTU PDR (%)',metrics.uplink?.valid?ms(metrics.uplink.pdr):'Tidak tersedia'],
-    ['RTU→MTU PLR (%)',metrics.uplink?.valid?ms(metrics.uplink.plr):'Tidak tersedia'],
+    ['RTU→MTU PDR (%)',upPdrCell],
+    ['RTU→MTU PLR (%)',upPlrCell],
     ['MTU→RTU PDR konfirmasi (%)',metrics.downlink?.valid?ms(metrics.downlink.pdr):'Tidak tersedia'],
     ['MTU→RTU PLR belum terkonfirmasi (%)',metrics.downlink?.valid?ms(metrics.downlink.plr):'Tidak tersedia'],
     ['Rumus PDR','PDR = paket diterima / paket terkirim × 100%'],
     ['Rumus PLR','PLR = (paket terkirim − paket diterima) / paket terkirim × 100%'],
     ['Kualitas waktu','Timestamp antar ESP32–backend–browser memerlukan sinkronisasi jam NTP untuk delay satu arah.'],
-    ['Catatan pengukuran','PDR RTU→MTU membutuhkan laporan paket terkirim utuh per 10 detik dari RTU; kekurangan laporan -> N/A.'],
+    ['Catatan pengukuran','PDR RTU→MTU membutuhkan laporan paket terkirim utuh per 10 detik dari RTU; bila hanya sebagian bucket lengkap ditandai parsial, bila 0 bucket lengkap -> N/A.'],
     ['Keterbatasan downlink','Tidak ada ACK atau laporan RTU belum membuktikan command hilang, sebab ACK/laporan bisa hilang.'],
     ['Keterbatasan browser','PDR RTU→MTU diukur hingga backend MQTT; browser hanya menyimpan waktu ketika terbuka.'],
     ['Batas data','Paket yang tidak berhasil disimpan di Supabase tidak termasuk perhitungan; pantau log error DB.']];

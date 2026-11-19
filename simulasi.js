@@ -135,9 +135,9 @@ function publish(topic,payload,qos=0){
   mqttClient.publish(topic,JSON.stringify(payload),{qos,retain:false},err=>{if(err)console.error('MQTT publish gagal:',err.message)});
   return true;
 }
-function sensorPayload(){
+function sensorPayload(timestampMs=Date.now()){
   return {
-    packet_id:randomUUID(),session_id:SESSION_ID,packet_seq:nextSequence++,rtu_sent_at:new Date().toISOString(),time_sync_status:'local_os',
+    packet_id:randomUUID(),session_id:SESSION_ID,packet_seq:nextSequence++,rtu_sent_at:new Date(timestampMs).toISOString(),time_sync_status:'local_os',
     suhu:Number(state.suhu.toFixed(2)),humidity:Number(state.humidity.toFixed(2)),
     water_level:state.tankVolume>=60?'HIGH':state.tankVolume>=40?'MEDIUM':'LOW',
     tank_volume:Number(state.tankVolume.toFixed(2)),
@@ -151,7 +151,7 @@ let lastSensorPayload=null;
 function publishSensor(){
   const now=Date.now();closeElapsedBuckets(now);
   if(!mqttClient.connected)return;
-  const packet=sensorPayload();
+  const packet=sensorPayload(now);
   if(publish(TOPICS.sensor,packet)){bucketSensorSent++;lastSensorPayload=packet;}
 }
 function publishStatus(){
